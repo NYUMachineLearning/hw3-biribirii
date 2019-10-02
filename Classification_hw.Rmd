@@ -1,0 +1,107 @@
+---
+title: "Classification_hw"
+author: "Brian Chang"
+date: "2019/10/2"
+output: html_document
+---
+```{r, include=FALSE}
+library(caret)
+library(ROCR)
+library(pROC)
+library(MASS)
+library(ggplot2)
+library(gridExtra)
+library(dplyr)
+library(ggfortify)
+library(glmnet)
+library(tidyverse)
+library(mlbench)
+```
+
+
+#Homework:
+
+1. Use the Breast Cancer dataset from the mlbench package, and predict whether the cancer is malignant or benign using one of the algorithms we learned about in class. Give some rationale as to why you chose this algorithm. Plot ROC curves, and confusion matrices. If you are choosing a hyperparameter like K or lambda, explain how and why you chose it. 
+
+* We applied a logistic regression model to predict whether or not a cancer would be malignant or benign. First, this is a simple binary classification. The predictor variables were mostly ordinal so applying a multivariable logistic regression seemed like the best fit.  
+
+```{r breast cancer}
+data(BreastCancer)
+
+BreastCancer <- na.omit(BreastCancer)
+
+train_breastcancer <- floor(0.75 * nrow(BreastCancer))
+set.seed(20)
+train_pos <- sample(seq_len(nrow(BreastCancer)), size = train_breastcancer)
+train_classifier <- BreastCancer[train_pos,]
+test_classifier <- BreastCancer[-train_pos,]
+
+dim(train_classifier)
+dim(test_classifier)
+#only look at two classes 
+train_classifier_log <- train_classifier[c(which(train_classifier$Class == "benign"),
+                                           which(train_classifier$Class == "malignant")),]
+test_classifier_log <- test_classifier[c(which(test_classifier$Class == "benign"), 
+                                         which(test_classifier$Class == "malignant")),]
+
+train_classifier_log$Class <- factor(train_classifier_log$Class)
+test_classifier_log$Class <- factor(test_classifier_log$Class)
+
+ctrl <- trainControl(method = "repeatedcv", repeats = 20, classProbs = T,
+                     savePredictions = T)
+```
+
+
+```{r logistic regression model, include = FALSE}
+logistic_regression <- train(Class ~ Cl.thickness + Cell.size + Cell.shape + Marg.adhesion + Epith.c.size + Bare.nuclei + Bl.cromatin + Normal.nucleoli + Mitoses, 
+                             data = train_classifier_log, 
+                             method = "glm", 
+                             family= "binomial", 
+                             trControl = ctrl
+                             )
+```
+
+
+```{r}
+logistic_regression
+```
+
+
+
+```{r ROC}
+plot(x = roc(predictor = logistic_regression$pred$benign,
+             response = logistic_regression$pred$obs)$specificities, 
+     y = roc(predictor = logistic_regression$pred$benign, 
+             response = logistic_regression$pred$obs)$sensitivities,
+     col= "blue", xlim = c(1, 0), type ="l", ylab = "Sensitivity",
+     xlab = "Specificity")
+legend("bottomright", legend = paste("benign vs. malignant --", 
+                                     roc(predictor = logistic_regression$pred$benign,
+                                         response = logistic_regression$pred$obs)$auc
+, sep = ""), col = c("blue"), fill = c("blue"))
+```
+
+
+```{r predict on test}
+logistic_regression_predict_class <- predict(logistic_regression, 
+                                             newdata = test_classifier_log)
+
+#confusion matrix
+confusionMatrix(logistic_regression_predict_class, 
+                reference = test_classifier_log$Class)
+```
+
+
+```{r correlation}
+# check correlation of log odds to independent variables in logistic regression model
+logistic_regression_predict <- predict(logistic_regression, 
+                                       newdata = test_classifier_log, type = "prob")
+
+odds_species1 <- logistic_regression_predict[,1] / (1 - logistic_regression_predict[,1])
+log_odds_species1 <- log(odds_species1)
+
+test_classifier_probs <- test_classifier_log[,2:10]
+test_classifier_probs <- sapply(test_classifier_probs, as.numeric)
+
+cor(log_odds_species1, test_classifier_probs)
+```
