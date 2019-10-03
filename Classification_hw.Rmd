@@ -76,7 +76,7 @@ dim(test_classifier)
 
 ## Linear Discriminant analysis
 
-* We chose to run the LDA model on this dataset because the sample size is relatively small. Furthermore, the two classes (benign vs. malignant) appear to be well separated. However, the distributions are not normal.
+* We chose to run the LDA model on this dataset because the sample size is relatively small. Furthermore, the two classes (benign vs. malignant) appear to be well separated enough with class-specific means. However, the distributions do not appear to be normal. Nonetheless, LDA appears to have performed better than logistic regression, which is also demonstrated later.
 
 
 ```{r bar plots}
@@ -205,7 +205,7 @@ logistic_regression <- train(Class ~ Cl.thickness + Cell.size + Cell.shape + Mar
                              )
 ```
 
-* We see that there is a failure to converge error.
+* We see that there is a failure to converge error. The model was also ran separately with 100 max iterations and the erro still persisted.
 
 ```{r}
 logistic_regression
