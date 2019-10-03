@@ -116,6 +116,7 @@ library(dplyr)
 library(ggfortify)
 library(glmnet)
 library(tidyverse)
+library(mlbench)
 ```
 
 Split data into training and test set
@@ -174,19 +175,31 @@ median(resid(Ridge_regression))
 $$Lasso Regression=\sum_{i=1}^{n}(y_i - w_0 - \sum_{j=1}^{p}w_jx_{ij})^2 + \lambda\sum_{j=1}^p|w_j|$$
 2. Create and train model 
 ```{r}
+ctrl =  trainControl(method = "boot", 15)
 
+Lasso_regression <- train(Temp ~ Wind + Month, data = train_regression,
+                          method = 'lasso', trControl= ctrl) 
 ```
 
 ```{r}
+Lasso_regression
 ```
 
 Examine the residuals 
 ```{r}
 
-#plot the predicted values vs the observed values
+lasso_test_pred <- predict(Lasso_regression, newdata = test_regression)
 
+#plot the predicted values vs the observed values
+plot_lasso_test_pred <- data.frame(Temp_test_pred = lasso_test_pred, 
+                                   Observed_Temp = test_regression$Temp)
+ggplot(data = plot_lasso_test_pred) +
+  geom_point(aes(x=Observed_Temp, y = Temp_test_pred)) + 
+  ggtitle("True Temp Value vs Predicted Temp Value Lasso Regression") +
+  theme_bw()
 
 #median residual value should be close to zero
+median(resid(Lasso_regression))
 ```
 
 
@@ -414,16 +427,157 @@ ggplot(data = test_classifier_log) +
 
 1. Use the Breast Cancer dataset from the mlbench package, and predict whether the cancer is malignant or benign using one of the algorithms we learned about in class. Give some rationale as to why you chose this algorithm. Plot ROC curves, and confusion matrices. If you are choosing a hyperparameter like K or lambda, explain how and why you chose it. 
 
-```{r}
-#libra
-#train
-#test
+```{r breast cancer}
+data(BreastCancer)
 
-##ctrl <- trainControl()
-## <- train(, data = , method = "", trControl = ctrl)
-## predict(, newdata="")
+BreastCancer <- na.omit(BreastCancer)
+
+train_breastcancer <- floor(0.75 * nrow(BreastCancer))
+set.seed(20)
+train_pos <- sample(seq_len(nrow(BreastCancer)), size = train_breastcancer)
+train_classifier <- BreastCancer[train_pos,]
+test_classifier <- BreastCancer[-train_pos,]
+
+dim(train_classifier)
+dim(test_classifier)
+#only look at two classes 
+train_classifier_log <- train_classifier[c(which(train_classifier$Class == "benign"),
+                                           which(train_classifier$Class == "malignant")),]
+test_classifier_log <- test_classifier[c(which(test_classifier$Class == "benign"), 
+                                         which(test_classifier$Class == "malignant")),]
+
+train_classifier_log$Class <- factor(train_classifier_log$Class)
+test_classifier_log$Class <- factor(test_classifier_log$Class)
+
+ctrl <- trainControl(method = "repeatedcv", repeats = 20, classProbs = T,
+                     savePredictions = T)
 ```
 
+
+```{r logistic regression model, include = FALSE}
+logistic_regression <- train(Class ~ Cl.thickness + Cell.size + Cell.shape + Marg.adhesion + Epith.c.size + Bare.nuclei + Bl.cromatin + Normal.nucleoli + Mitoses, 
+                             data = train_classifier_log, 
+                             method = "glm", 
+                             family= "binomial", 
+                             trControl = ctrl
+                             )
+```
+
+
+```{r}
+logistic_regression
+```
+
+
+
+```{r ROC}
+plot(x = roc(predictor = logistic_regression$pred$benign,
+             response = logistic_regression$pred$obs)$specificities, 
+     y = roc(predictor = logistic_regression$pred$benign, 
+             response = logistic_regression$pred$obs)$sensitivities,
+     col= "blue", xlim = c(1, 0), type ="l", ylab = "Sensitivity",
+     xlab = "Specificity")
+legend("bottomright", legend = paste("benign vs. malignant --", 
+                                     roc(predictor = logistic_regression$pred$benign,
+                                         response = logistic_regression$pred$obs)$auc
+, sep = ""), col = c("blue"), fill = c("blue"))
+```
+
+
+```{r predict on test}
+logistic_regression_predict_class <- predict(logistic_regression, 
+                                             newdata = test_classifier_log)
+
+#confusion matrix
+confusionMatrix(logistic_regression_predict_class, 
+                reference = test_classifier_log$Class)
+```
+
+
+```{r correlation}
+# check correlation of log odds to independent variables in logistic regression model
+logistic_regression_predict <- predict(logistic_regression, 
+                                       newdata = test_classifier_log, type = "prob")
+
+odds_species1 <- logistic_regression_predict[,1] / (1 - logistic_regression_predict[,1])
+log_odds_species1 <- log(odds_species1)
+
+test_classifier_probs <- test_classifier_log[,2:10]
+test_classifier_probs <- sapply(test_classifier_probs, as.numeric)
+
+cor(log_odds_species1, test_classifier_probs)
+```
+
+
+## Linear Discriminant analysis
+
+* Good for well separated classes, more stable with small n than logistic regression, and good for more than 2 response classes. 
+* LDA assumes a normal distribution with a class specific mean and common variance. 
+
+Let's see if our data follows the assumptions of LDA. 
+
+
+```{r LDA parameters}
+ggplot(data = BreastCancer, aes(x = Cl.thickness, fill = Class)) + 
+  geom_bar(position="identity", alpha=0.5, bins= 25)  +
+  theme_bw()
+
+ggplot(data = BreastCancer, aes(x = Cell.size, fill = Class)) + 
+  geom_bar(position="identity", alpha=0.5, bins= 25)  +
+  theme_bw()
+
+ggplot(data = BreastCancer, aes(x = Marg.adhesion, fill = Class)) + 
+  geom_bar(position="identity", alpha=0.5, bins= 25)  +
+  theme_bw()
+```
+
+## Linear Discrimant Analysis
+
+* We chose to run the LDA model on this dataset because the sample size is relatively small. Furthermore, the two classes (benign vs. malignant) appear to be well separated
+
+
+```{r LDA}
+LDA <- lda(Class ~ Cl.thickness + Cell.size + Cell.shape + Marg.adhesion + Epith.c.size + Bare.nuclei + Bl.cromatin + Normal.nucleoli + Mitoses, data= train_classifier, cv= T)
+```
+
+
+```{r}
+LDA
+```
+
+
+```{r predict}
+LDA_predict <- predict(LDA, newdata=test_classifier)
+confusionMatrix(LDA_predict$class, reference = test_classifier$Class)
+```
+
+```{r}
+# save the predictions in a new variable
+predictions <- as.data.frame(LDA_predict$posterior) %>% 
+  rownames_to_column("idx")
+
+test_classifier <- test_classifier %>% 
+  rownames_to_column("idx")
+
+predictions_actual <- full_join(predictions,test_classifier, by = "idx" )
+
+# choose the two classes we want to compare, setosa and versicolor
+set_vers_true_labels <- predictions_actual %>% 
+  filter(Class %in% c("benign", "malignant")) %>% 
+  mutate(Class = as.character(Class)) 
+  
+#make dataframe of the prediction and the label
+pred_label <- data.frame(prediction = set_vers_true_labels$benign,
+                         label = set_vers_true_labels$Class)
+
+ggplot(pred_label, aes(x = 1:171, y = prediction, color = label))+
+  geom_point()
+
+pred <- prediction(set_vers_true_labels$setosa, set_vers_true_labels$Species, 
+label.ordering = c("malignant", "benign")) 
+
+perf <- performance(pred,"tpr","fpr")
+plot(perf)
 
 References: 
 https://sebastianraschka.com/Articles/2014_python_lda.html
