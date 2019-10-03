@@ -82,7 +82,8 @@ dim(test_classifier)
 * We chose to run the LDA model on this dataset because the sample size is relatively small. Furthermore, the two classes (benign vs. malignant) appear to be well separated. However, the distributions are not normal.
 
 
-```{r}
+```{r bar plots}
+# look at class specific means and distributions of predictor variables
 clthickness <- ggplot(data = BreastCancer, aes(x = Cl.thickness, fill = Class)) + 
   geom_bar(position="identity", alpha=0.5)  +
   theme_bw()
