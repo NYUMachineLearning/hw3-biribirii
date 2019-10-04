@@ -24,6 +24,20 @@ library(mlbench)
 ## Lasso
 
 $$Lasso Regression=\sum_{i=1}^{n}(y_i - w_0 - \sum_{j=1}^{p}w_jx_{ij})^2 + \lambda\sum_{j=1}^p|w_j|$$
+
+```{r}
+data(airquality)
+
+train_size <- floor(0.75 * nrow(airquality))
+set.seed(543)
+train_pos <- sample(seq_len(nrow(airquality)), size = train_size)
+train_regression <- airquality[train_pos,-c(1,2)]
+test_regression <- airquality[-train_pos,-c(1,2)]
+
+dim(train_regression)
+dim(test_regression)
+```
+
 2. Create and train model 
 ```{r}
 ctrl =  trainControl(method = "boot", 15)
@@ -137,7 +151,7 @@ LDA_predict <- predict(LDA, newdata=test_classifier)
 confusionMatrix(LDA_predict$class, reference = test_classifier$Class)
 ```
 
-```{r ROC}
+```{r ROC LDA}
 # save the predictions in a new variable
 predictions <- as.data.frame(LDA_predict$posterior) %>% 
   rownames_to_column("idx")
@@ -159,7 +173,7 @@ pred_label <- data.frame(prediction = set_vers_true_labels$benign,
 ggplot(pred_label, aes(x = 1:171, y = prediction, color = label))+
   geom_point()
 
-pred <- prediction(set_vers_true_labels$setosa, set_vers_true_labels$Species, 
+pred <- prediction(set_vers_true_labels$benign, set_vers_true_labels$Class, 
 label.ordering = c("malignant", "benign")) 
 
 perf <- performance(pred,"tpr","fpr")
@@ -205,7 +219,7 @@ logistic_regression <- train(Class ~ Cl.thickness + Cell.size + Cell.shape + Mar
                              )
 ```
 
-* We see that there is a failure to converge error. The model was also ran separately with 100 max iterations and the erro still persisted.
+* We see that there is a failure to converge error. The model was also ran separately with 100 max iterations and the error still persisted.
 
 ```{r}
 logistic_regression
